@@ -8,6 +8,10 @@ export function memSize() {
     return Module.exports.memory.buffer.byteLength; 
 }
 
+export function readCInt(int_ptr) {
+    return new Int32Array(memBuffer(), int_ptr)[0];
+}
+
 export function readCString(c_str) {
     const bytes = new Uint8Array(memBuffer(), c_str);
     const read_bytes = [];
@@ -81,13 +85,33 @@ const import_table = {
     },
 
     glfwGetError: () => {},
+    __assert_fail: () => {},
+    abs: (a) => { return Math.abs(a); },
 
     ...webgl.gl_functions,
 
-    memcpy: () => { console.log('memcpy'); },
-    memset: (...args) => { console.log('memset', ...args); },
-    // malloc: (size) => { memAlloc(size); },
-    // free: () => { console.log('free'); },
+    printf: (fmt, num_ptr) => { 
+        console.log(readCString(fmt), num_ptr, readCString(num_ptr));
+
+    },
+    memcpy: (dst_ptr, src_ptr, num) => { 
+        let dst = new Uint8Array(memBuffer(), dst_ptr, num);
+        let src = new Uint8Array(memBuffer(), src_ptr, num);
+        for (let i = 0; i < num; i++) {
+            dst[i] = src[i];
+        }
+        return dst_ptr;
+    },
+    memset: (ptr, val, num) => { 
+        // console.log("memset", ptr, val, num);
+        let data = new Uint8Array(memBuffer(), ptr, num);
+        for (let i = 0; i < num; i++) {
+            data[i] = val;
+        }
+        return ptr;
+    },
+    malloc: (size) => { return Module.exports.memAlloc(size); },
+    free: (ptr) => { return Module.exports.memFree(ptr); },
 };
 
 // https://github.com/torch2424/wasm-by-example/blob/master/demo-util/

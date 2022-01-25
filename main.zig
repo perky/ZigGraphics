@@ -51,20 +51,54 @@ pub fn main() void
         std.log.err("Failed to make GFX window: {s}", .{err});
         @panic("GFX\n");
     };
+    
     onInit(window);
     window.startEventLoop(onFrame);
     window.destroy();
 }
+
+const Textures = struct {
+    const gradient = gfx.LabeledData{ .name = "gradient", .data = @embedFile("assets/gradient.png")};
+    const font = gfx.LabeledData{ .name = "font", .data = @embedFile("assets/spleen.png")};
+};
 
 pub fn onInit(window: gfx.Window) void
 {
     // An array of 3 vectors which represents 3 vertices
     const triangle_buffer_data = [_]f32 {
         -1.0, -1.0, 0.0,
-        1.0, -1.0, 0.0,
-        0.0,  1.0, 0.0,
+         1.0, -1.0, 0.0,
+         0.0,  1.0, 0.0,
     };
-    triangle_vbo = gfx.opengl.createVertexObject(triangle_buffer_data[0..], window.default_shaders);
+    const triangle_uv_data = [_]f32 {
+        0.0, 0.0,
+        1.0, 0.0,
+        0.0, 1.0,
+    };
+    const square_buffer_data = [_]f32 {
+        -1.0, -1.0, 0.0,
+         1.0, -1.0, 0.0,
+        -1.0,  1.0, 0.0,
+        -1.0,  1.0, 0.0,
+         1.0, -1.0, 0.0,
+         1.0,  1.0, 0.0
+    };
+    const square_uv_data = [_]f32 {
+        0.0, 0.0,
+        1.0, 0.0,
+        0.0, 1.0,
+        0.0, 1.0,
+        1.0, 0.0,
+        1.0, 1.0
+    };
+    _ = triangle_buffer_data;
+    _ = triangle_uv_data;
+    triangle_vbo = gfx.VertexObject.init(
+        square_buffer_data[0..], 
+        square_uv_data[0..],
+        Textures.font,
+        window.default_shaders
+    );
 }
 
 const vm = gfx.vmath;
@@ -72,12 +106,12 @@ const V3 = vm.Vec3.init;
 var camera_pos_initial = V3(0, 0, 5);
 var camera_pos = V3(0, 0, 0);
 var time: f32 = 0;
-pub fn onFrame(_: gfx.Window) void
+pub fn onFrame(window: gfx.Window) void
 {
     const sin = std.math.sin;
     time += 0.01;
     camera_pos = camera_pos_initial.add(V3(0, 0, sin(time*0.3)*4));
-    gfx.clear(1.0, 0.0, 0.0);
+    window.clear(1.0, 0.0, 0.0);
     drawTriangle(V3(-2, sin(time) * 3, 0));
     var depth: f32 = 0;
     while (depth < 10) : (depth += 1) {
@@ -85,7 +119,7 @@ pub fn onFrame(_: gfx.Window) void
     }
 }
 
-var triangle_vbo: gfx.opengl.VertexObject = undefined;
+var triangle_vbo: gfx.VertexObject = undefined;
 pub fn drawTriangle(model_pos: vm.Vec3) void
 {
     const projection_mtx = vm.Mat4.initPerspectiveFovLh(90 * (std.math.pi/180.0), 600.0/500.0, 0.01, 200.0);

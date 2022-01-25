@@ -1,7 +1,7 @@
 const std = @import("std");
 const wasm = @import("wasm.zig");
 pub const vmath = @import("vectormath.zig");
-pub const opengl = @import("opengl.zig");
+pub const gl = @import("opengl.zig");
 const native_arch = @import("builtin").target.cpu.arch;
 const USE_GLFW = (native_arch != .wasm32);
 const glfw = if (USE_GLFW) @import("glfw") else result: {
@@ -12,30 +12,32 @@ const glfw = if (USE_GLFW) @import("glfw") else result: {
 const vert_shader_source: []const u8 = @embedFile("../shader.vert");
 const frag_shader_source: []const u8 = @embedFile("../shader.frag");
 
+pub const Texture = gl.Texture;
+pub const LabeledData = gl.LabeledData;
+pub const VertexObject = gl.VertexObject;
+
 pub const Window = struct {
     const CharacterPressCallbackSignature = fn (_: Window, _: u8) void;
     const FrameLoopSignature = fn (_: Window) void;
     const Self = @This();
     
     glfwWindow: ?glfw.Window = null,
-    default_shaders: opengl.ShaderProgram = undefined,
+    default_shaders: gl.ShaderProgram = undefined,
 
     pub fn init(self: *Self) void
     {
-        const c = opengl.c;
-        const gl = opengl.GlFunctions;
-
         if (USE_GLFW)
         {
             glfw.makeContextCurrent(self.glfwWindow.?) catch @panic("Failed to change GL context.");
-            // opengl.linkGlFunctions(glfw.getProcAddress);
-            const shader_version = gl.GetString(c.GL_SHADING_LANGUAGE_VERSION);
+            gl.linkGlFunctions(glfw.getProcAddress);
+            const shader_version = gl.getShaderVersion();
             std.log.info("shader version: {s}\n", .{shader_version});
         }
-        var VertexArrayID: opengl.Uint = 0;
-        gl.GenVertexArrays(1, &VertexArrayID);
-        gl.BindVertexArray(VertexArrayID);
-        self.default_shaders = opengl.createShaderProgram(vert_shader_source, frag_shader_source);
+
+        var vertex_array_id: gl.Uint = 0;
+        gl.GenVertexArrays(1, &vertex_array_id);
+        gl.BindVertexArray(vertex_array_id);
+        self.default_shaders = gl.createShaderProgram(vert_shader_source, frag_shader_source);
     }
 
     pub fn destroy(self: Self) void
@@ -68,6 +70,11 @@ pub const Window = struct {
         {
             wasm.webStartEventLoop(frame_fn);
         }
+    }
+
+    pub fn clear(_: Self, r: f32, g: f32, b: f32) void 
+    {
+        gl.clear(r, g, b);
     }
 };
 
@@ -106,11 +113,4 @@ pub fn createWindow(desiredWidth: u32, desiredHeight: u32, name: [*:0]const u8) 
 
     window.init();
     return window;
-}
-
-pub fn clear(r: f32, g: f32, b: f32) void 
-{
-    const c = opengl.c;
-    c.glClearColor(r, g, b, 1.0);
-    c.glClear(c.GL_COLOR_BUFFER_BIT | c.GL_DEPTH_BUFFER_BIT);
 }

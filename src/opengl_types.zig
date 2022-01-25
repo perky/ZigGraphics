@@ -1,0 +1,10 @@
+pub const Uint = u32;
+pub const Int = i32;
+pub const Enum = u32;
+pub const Sizei = usize;
+pub const Float = f32;
+pub const Char = u8;
+pub const Bool = u8;
+pub const String = [*c]const Char;
+pub const Strings = [*c]const String;
+pub const VoidPtr = *const anyopaque;

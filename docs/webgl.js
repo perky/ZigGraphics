@@ -6,7 +6,8 @@ export function WebGlInit(canvas_id) {
         shaders: [],
         programs: [],
         buffers: [],
-        uniforms: []
+        uniforms: [],
+        textures: []
     };
     const stub = (name) => {
         return (...args) => console.log("[opengl stub]", name, ...args);
@@ -112,7 +113,34 @@ export function WebGlInit(canvas_id) {
             let uniform_location = gl_context.uniforms[uniform_id];
             let data = new Float32Array(memBuffer(), matrix_ptr, 64);
             return gl.uniformMatrix4fv(uniform_location, transpose, data, 0, 16);
-        }
+        },
+        glGenTextures: () => {
+            let tex = gl.createTexture();
+            gl_context.textures.push(tex);
+            return gl_context.textures.length-1;
+        },
+        glBindTexture: (target, tex_id) => {
+            let tex = gl_context.textures[tex_id];
+            return gl.bindTexture(target, tex);
+        },
+        //            (Enum,   Int,    Int,           Sizei, Sizei,  Int,    Enum,   Enum, VoidPtr)
+        glTexImage2D: (target, level, internalformat, width, height, border, format, type, dataPtr) => {
+            let tex_data = new Uint8Array(memBuffer(), dataPtr, (width * height * 3));
+            gl.texImage2D(target, level, internalformat, width, height, border, format, type, tex_data);
+        },
+        glTexParameteri: (target, pname, param) => {
+            gl.texParameteri(target, pname, param);
+        },
+        glTexParameterf: (target, pname, param) => {
+            gl.texParameterf(target, pname, param);
+        },
+        glActiveTexture: (tex_unit) => {
+            gl.activeTexture(tex_unit);
+        },
+        glUniform1i: (uniform_id, v0) => {
+            let uniform_location = gl_context.uniforms[uniform_id];
+            gl.uniform1i(uniform_location, v0);
+        },
     };
     return {
         gl_functions, gl, gl_context
