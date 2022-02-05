@@ -13,7 +13,6 @@ const runWasm = async (wasm_file, canvas_id) => {
 window.runWasm = runWasm;
 
 import { WebGlInit } from "./webgl.js";
-import { sprintf } from "./sprintf.js";
 function ImportTableInit(wasm_module, canvas_id) {
     const canvas = document.querySelector(canvas_id);
     const webgl = WebGlInit(canvas, wasm_module);
