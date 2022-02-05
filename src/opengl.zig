@@ -381,8 +381,6 @@ pub fn getShaderVersion() [*c]const u8
     return c.glGetString(c.GL_SHADING_LANGUAGE_VERSION);
 }
 
-// const my_font = @embedFile("roboto.ttf");
-
 pub const ImguiState = struct {
     shader_program: Gl.Uint,
     projection_matrix_id: Gl.Int,
