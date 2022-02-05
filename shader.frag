@@ -2,10 +2,12 @@
 precision mediump float;
 
 in vec2 UV;
-out vec4 color;
+in vec4 VCol;
+out vec4 frag_color;
 uniform sampler2D texSampler;
 
 void main() {
-   //color = vec4(0.0, 1.0, 0.0, 1.0);
-   color = texture(texSampler, UV).rgba;
+   frag_color = texture(texSampler, UV).rgba * VCol;
+   //frag_color = texture(texSampler, UV).rgba;
+   //frag_color = vec4(1.0, 1.0, 1.0, 1.0);
 }

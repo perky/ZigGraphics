@@ -1,5 +1,6 @@
 const std = @import("std");
 const glfw = @import("lib/mach-glfw/build.zig");
+const imgui = @import("lib/imgui/build.zig");
 
 pub fn build(b: *std.build.Builder) void
 {
@@ -14,28 +15,34 @@ pub fn build(b: *std.build.Builder) void
     exe.setTarget(target);
     exe.setBuildMode(mode);
     exe.addPackagePath("glfw", "lib/mach-glfw/src/main.zig");
-    exe.addPackagePath("opengl_bindings", "src/opengl_runtime.gen.zig");
     exe.addIncludeDir("include/");
     switch (target.getOsTag()) {
         .windows => {
+            exe.addPackagePath("opengl_bindings", "src/opengl_runtime.gen.zig");
             exe.linkSystemLibrary("opengl32");
         },
         .linux => {
+            exe.addPackagePath("opengl_bindings", "src/opengl_runtime.gen.zig");
             exe.linkSystemLibrary("GL");
         },
         .macos => {
+            // Macos statically links to OpenGL.
+            exe.addPackagePath("opengl_bindings", "src/opengl_static.gen.zig");
             exe.linkFramework("OpenGL");
         },
         else => {
             @panic("Unsupported os.");
         }
     }
+    imgui.linkArtifact(b, exe, target.getOsTag(), "lib/imgui");
     exe.install();
     glfw.link(b, exe, .{});
     b.getInstallStep().dependOn(&exe.step);
 
+    // RUN DESKTOP STEP
+
     // WASM
-    const web = b.addSharedLibrary("zig_graphics_web", "main.zig", .unversioned);
+    const web = b.addSharedLibrary("zig_graphics", "main.zig", .unversioned);
     web.setTarget(.{
         .cpu_arch = .wasm32,
         .os_tag = .freestanding
@@ -44,10 +51,20 @@ pub fn build(b: *std.build.Builder) void
     web.linkLibC();
     web.addPackagePath("opengl_bindings", "src/opengl_static.gen.zig");
     web.addIncludeDir("include");
-    web.setOutputDir("docs/");
+    web.setOutputDir("zig-out/web/");
+    imgui.linkArtifact(b, web, .freestanding, "lib/imgui");
     web.initial_memory = 65536 * 250;
     web.install();
+    
+    const web_content = b.addInstallDirectory(
+        .{ .source_dir = "src/wasm_runtime/web", .install_dir = .{ .custom = "web/" }, .install_subdir = "" },
+    );
+    web.step.dependOn(&web_content.step);
+    // b.pushInstalledFile(.lib, "web");
+    // web_wasm.step.dependOn(&web.step);
+    // web.step.dependOn(&web_wasm.step);
     b.getInstallStep().dependOn(&web.step);
+    // b.getInstallStep().dependOn(&web_wasm.step);
 }
 
 pub fn writeOpenGlBindings(output_filename: []const u8, write_externs: bool) !void

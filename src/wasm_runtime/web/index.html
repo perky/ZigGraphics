@@ -1,0 +1,17 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <title>Zig WebAssembly</title>
+  </head>
+  <body>
+    <canvas id="glCanvas" width="1000" height="800"></canvas>
+    <script type="module" src="./webgl.js"></script>
+    <script type="module" src="./wasm.js"></script>
+    <script type='text/javascript'>
+        window.onload = (event) => {
+          runWasm("zig_graphics.wasm", "#glCanvas");
+        };
+      </script>
+  </body>
+</html>

@@ -691,6 +691,16 @@ pub const Quat = extern struct {
         const n = axis.normalize();
         return initRotationNormal(n, angle);
     }
+
+    pub fn init2DAngleRadians(angle: f32) Quat {
+        const axis = Vec3.init(0, 0, 1);
+        const n = axis.normalize();
+        return initRotationNormal(n, angle);
+    }
+
+    pub fn init2DAngleDegrees(angle: f32) Quat {
+        return init2DAngleRadians(angle * std.math.pi / 180.0);
+    }
 };
 
 pub const Mat4 = extern struct {
