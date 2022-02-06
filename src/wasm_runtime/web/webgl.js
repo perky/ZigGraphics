@@ -17,6 +17,7 @@ export function WebGlInit(canvas, wasm_module) {
         glGetString: stub("getString"),
         glEnable: (feature) => { gl.enable(feature); },
         glDisable: (feature) => { gl.disable(feature); },
+        glIsEnabled: (feature) => { return gl.isEnabled(feature); },
         glBlendEquation: (mode) => { gl.blendEquation(mode); },
         glBlendFunc: (src_factor, dst_factor) => { gl.blendFunc(src_factor, dst_factor); },
         glViewport: (...args) => { gl.viewport(...args); },

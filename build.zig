@@ -2,6 +2,67 @@ const std = @import("std");
 const glfw = @import("lib/mach-glfw/build.zig");
 const imgui = @import("lib/imgui/build.zig");
 
+pub fn pkgMake(comptime name: []const u8, comptime src: []const u8) std.build.Pkg
+{
+    return std.build.Pkg{.name = name, .path = .{.path = src}};
+}
+
+pub fn linkZigGraphics(b: *std.build.Builder, exe: *std.build.LibExeObjStep) void
+{
+    // Add packages.
+    const imgui_pkg = pkgMake("imgui", "lib/imgui/imgui_entry.zig");
+    const glfw_pkg = pkgMake("glfw", "lib/mach-glfw/src/main.zig");
+    const ogl_runtime_pkg = pkgMake("opengl_bindings", "src/opengl_runtime.gen.zig");
+    const ogl_static_pkg = pkgMake("opengl_bindings", "src/opengl_static.gen.zig");
+    var zig_graphics_pkg = pkgMake("zig_graphics", "src/zig_graphics.zig");
+    switch (exe.target.getOsTag()) {
+        .windows, .linux => {
+            zig_graphics_pkg.dependencies = &[_]std.build.Pkg{imgui_pkg, glfw_pkg, ogl_runtime_pkg};
+            exe.addPackage(zig_graphics_pkg);
+        },
+        .macos, => {
+            zig_graphics_pkg.dependencies = &[_]std.build.Pkg{imgui_pkg, glfw_pkg, ogl_static_pkg};
+            exe.addPackage(zig_graphics_pkg);
+        },
+        .freestanding => {
+            zig_graphics_pkg.dependencies = &[_]std.build.Pkg{imgui_pkg, ogl_static_pkg};
+            exe.addPackage(zig_graphics_pkg);
+        },
+        else => @panic("unsupported target")
+    }
+
+    // Common settings.
+    exe.addIncludeDir("include");
+    exe.linkLibC();
+    imgui.linkArtifact(b, exe, "lib/imgui");
+
+    // Link GLFW.
+    switch (exe.target.getOsTag()) {
+        .windows, .linux, .macos => {
+            glfw.link(b, exe, .{});
+        },
+        .freestanding => {},
+        else => @panic("unsupported target")
+    }
+
+    // Link system libraries.
+    switch (exe.target.getOsTag()) {
+        .windows => {
+            exe.linkSystemLibrary("opengl32");
+        },
+        .linux => {
+            exe.linkSystemLibrary("GL");
+        },
+        .macos => {
+            exe.linkFramework("OpenGL");
+        },
+        .freestanding => {},
+        else => {
+            @panic("Unsupported target");
+        }
+    }
+}
+
 pub fn build(b: *std.build.Builder) void
 {
     const mode = b.standardReleaseOptions();
@@ -14,32 +75,14 @@ pub fn build(b: *std.build.Builder) void
     const exe = b.addExecutable("zig_graphics", "main.zig");
     exe.setTarget(target);
     exe.setBuildMode(mode);
-    exe.addPackagePath("glfw", "lib/mach-glfw/src/main.zig");
-    exe.addIncludeDir("include/");
-    switch (target.getOsTag()) {
-        .windows => {
-            exe.addPackagePath("opengl_bindings", "src/opengl_runtime.gen.zig");
-            exe.linkSystemLibrary("opengl32");
-        },
-        .linux => {
-            exe.addPackagePath("opengl_bindings", "src/opengl_runtime.gen.zig");
-            exe.linkSystemLibrary("GL");
-        },
-        .macos => {
-            // Macos statically links to OpenGL.
-            exe.addPackagePath("opengl_bindings", "src/opengl_static.gen.zig");
-            exe.linkFramework("OpenGL");
-        },
-        else => {
-            @panic("Unsupported os.");
-        }
-    }
-    imgui.linkArtifact(b, exe, target.getOsTag(), "lib/imgui");
+    linkZigGraphics(b, exe);
     exe.install();
-    glfw.link(b, exe, .{});
     b.getInstallStep().dependOn(&exe.step);
 
-    // RUN DESKTOP STEP
+    // RUN DESKTOP
+    const run_exe = exe.run();
+    const run_exe_step = b.step("run", "Run the desktop executable");
+    run_exe_step.dependOn(&run_exe.step);
 
     // WASM
     const web = b.addSharedLibrary("zig_graphics", "main.zig", .unversioned);
@@ -48,23 +91,19 @@ pub fn build(b: *std.build.Builder) void
         .os_tag = .freestanding
     });
     web.setBuildMode(mode);
-    web.linkLibC();
-    web.addPackagePath("opengl_bindings", "src/opengl_static.gen.zig");
-    web.addIncludeDir("include");
+    linkZigGraphics(b, web);
     web.setOutputDir("zig-out/web/");
-    imgui.linkArtifact(b, web, .freestanding, "lib/imgui");
     web.initial_memory = 65536 * 250;
     web.install();
     
+    // WEB CONTENT
     const web_content = b.addInstallDirectory(
         .{ .source_dir = "src/wasm_runtime/web", .install_dir = .{ .custom = "web/" }, .install_subdir = "" },
     );
     web.step.dependOn(&web_content.step);
-    // b.pushInstalledFile(.lib, "web");
-    // web_wasm.step.dependOn(&web.step);
-    // web.step.dependOn(&web_wasm.step);
-    b.getInstallStep().dependOn(&web.step);
-    // b.getInstallStep().dependOn(&web_wasm.step);
+
+    const web_step = b.step("web", "Build and deploy WebAssembly version");
+    web_step.dependOn(&web.step);
 }
 
 pub fn writeOpenGlBindings(output_filename: []const u8, write_externs: bool) !void

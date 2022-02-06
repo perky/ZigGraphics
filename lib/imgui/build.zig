@@ -1,11 +1,21 @@
 const builtin = @import("builtin");
 const std = @import("std");
 const Builder = std.build.Builder;
+const Pkg = std.build.Pkg;
+const FileSource = std.build.FileSource;
 
-pub fn linkArtifact(b: *Builder, exe: *std.build.LibExeObjStep, os: std.Target.Os.Tag, comptime prefix_path: []const u8) void
+pub fn getPackage(comptime prefix_path: []const u8) Pkg
+{
+    return Pkg{
+        .name = "imgui", .path = FileSource{.path = prefix_path ++ "/imgui_entry.zig"},
+        .dependencies = null
+    };
+}
+
+pub fn linkArtifact(b: *Builder, exe: *std.build.LibExeObjStep, comptime prefix_path: []const u8) void
 {
     exe.linkLibC();
-    switch (os)
+    switch (exe.target.getOsTag())
     {
         .macos => {
             const frameworks_dir = macosFrameworksDir(b) catch unreachable;
@@ -26,7 +36,7 @@ pub fn linkArtifact(b: *Builder, exe: *std.build.LibExeObjStep, os: std.Target.O
         else => @panic("OS not supported.")
     }
 
-    const freestanding_arg = if (os == .freestanding) "-DIS_OS_FREESTANDING" else "";
+    const freestanding_arg = if (exe.target.getOsTag() == .freestanding) "-DIS_OS_FREESTANDING" else "";
 
     exe.addIncludeDir(prefix_path ++ "");
     const cpp_args = [_][]const u8{
@@ -40,7 +50,7 @@ pub fn linkArtifact(b: *Builder, exe: *std.build.LibExeObjStep, os: std.Target.O
     exe.addCSourceFile(prefix_path ++ "/imgui_tables.cpp", &cpp_args);
     exe.addCSourceFile(prefix_path ++ "/cimgui.cpp", &cpp_args);
     exe.addCSourceFile(prefix_path ++ "/temporary_hacks.cpp", &cpp_args);
-    exe.addPackagePath("imgui", prefix_path ++ "/imgui_entry.zig");
+    //exe.addPackage(getPackage(prefix_path));
 }
 
 // helper function to get SDK path on Mac

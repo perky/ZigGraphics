@@ -35,6 +35,7 @@ glScissor(Int, Int, Sizei, Sizei) void;
 glDrawElements(Enum, Sizei, Enum, ?VoidPtr) void;
 glEnable(Enum) void;
 glDisable(Enum) void;
+glIsEnabled(Enum) Bool;
 glViewport(Int, Int, Sizei, Sizei) void;
 glBlendEquation(Enum) void;
 glBlendFunc(Enum, Enum) void;

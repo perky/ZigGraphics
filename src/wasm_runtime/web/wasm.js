@@ -13,26 +13,10 @@ const runWasm = async (wasm_file, canvas_id) => {
 window.runWasm = runWasm;
 
 import { WebGlInit } from "./webgl.js";
-import { sprintf } from "./sprintf.js";
 function ImportTableInit(wasm_module, canvas_id) {
     const canvas = document.querySelector(canvas_id);
     const webgl = WebGlInit(canvas, wasm_module);
-    let mouse_state = {
-        x: 0, y: 0, left: false, right: false
-    };
-    canvas.addEventListener("mousemove", function(ev){
-        let rect = canvas.getBoundingClientRect();
-        mouse_state.x = ev.clientX - rect.left;
-        mouse_state.y = ev.clientY - rect.top;
-    });
-    canvas.addEventListener("mousedown", function(ev){
-        if (ev.button === 0) mouse_state.left = true;
-        if (ev.button === 2) mouse_state.right = true;
-    });
-    canvas.addEventListener("mouseup", function(ev){
-        if (ev.button === 0) mouse_state.left = false;
-        if (ev.button === 2) mouse_state.right = false;
-    });
+    const input_state = CanvasInputInit(canvas);
     const import_table = {
         abort: () => console.error("ABORT"),
         webPrint: (ptr, len) => {
@@ -40,33 +24,20 @@ function ImportTableInit(wasm_module, canvas_id) {
             const string = new TextDecoder('utf8').decode(bytes);
             console.log(string);
         },
-        
         webStartEventLoop: (onFrame) => {
             doEventLoop(wasm_module.obj, onFrame);
         },
         webCanvasWidth: () => { return canvas.width; },
         webCanvasHeight: () => { return canvas.height; },
         webBreakpoint: () => { debugger; },
-
-        webGetMouseX: () => { return mouse_state.x; },
-        webGetMouseY: () => { return mouse_state.y; },
-        webIsMouseLeftDown: () => { return mouse_state.left },
-
-        printf: (fmt_ptr, ...args) => {
-            let fmt = readCString(wasm_module.obj, fmt_ptr);
-            let result = sprintf(fmt, readCInt(wasm_module.obj, args[0]));
-            console.log(result);
-        },
-        vsnprintf: (buf_ptr, buf_size, fmt_ptr, ...args) => {
-            let fmt = readCString(wasm_module.obj, fmt_ptr);
-            let result = sprintf(fmt, readCInt(wasm_module.obj, args[0]));
-            let src = new TextEncoder().encode(result);
-            let dst = new Uint8Array(memBuffer(wasm_module.obj), buf_ptr, buf_size);
-            for (let i = 0; i < result.length; i++) {
-                dst[i] = src[i];
-            }
-            console.log("vsnprintf", result);
-            return src.length;
+        webGetMouseX: () => { return input_state.mouse_x; },
+        webGetMouseY: () => { return input_state.mouse_y; },
+        webIsMouseLeftDown: () => { return input_state.mouse_left },
+        webIsMouseMiddleDown: () => { return input_state.mouse_middle },
+        webIsMouseRightDown: () => { return input_state.mouse_right },
+        webIsKeyDown: (key_name_ptr) => {
+            const key_name = readCString(wasm_module.obj, key_name_ptr);
+            return input_state.key_down.has(key_name);
         },
 
         isdigit: (c) => { return c >= '0' && c <= '9'; },
@@ -80,6 +51,36 @@ function ImportTableInit(wasm_module, canvas_id) {
 const stub = (name) => {
     return (...args) => console.log("[wasm stub]", name, ...args);
 };
+
+function CanvasInputInit(canvas) {
+    let input_state = {
+        mouse_x: 0, mouse_y: 0, 
+        mouse_left: false, mouse_right: false, mouse_middle: false,
+        key_down: new Set([])
+    };
+    canvas.addEventListener("mousemove", function(ev){
+        let rect = canvas.getBoundingClientRect();
+        input_state.mouse_x = ev.clientX - rect.left;
+        input_state.mouse_y = ev.clientY - rect.top;
+    });
+    canvas.addEventListener("mousedown", function(ev){
+        if (ev.button === 0) input_state.mouse_left = true;
+        if (ev.button === 1) input_state.mouse_middle = true;
+        if (ev.button === 2) input_state.mouse_right = true;
+    });
+    canvas.addEventListener("mouseup", function(ev){
+        if (ev.button === 0) input_state.mouse_left = false;
+        if (ev.button === 1) input_state.mouse_middle = false;
+        if (ev.button === 2) input_state.mouse_right = false;
+    });
+    window.addEventListener("keydown", function(ev){
+        input_state.key_down.add(ev.key);
+    });
+    window.addEventListener("keyup", function(ev){
+        input_state.key_down.delete(ev.key);
+    });
+    return input_state;
+}
 
 // https://github.com/torch2424/wasm-by-example/blob/master/demo-util/
 export const wasmBrowserInstantiate = async (wasmModuleUrl, importObject) => {

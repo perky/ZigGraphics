@@ -37,6 +37,41 @@ pub fn deinit() void
     }
 }
 
+pub const MouseButton = enum {
+    left, middle, right
+};
+
+pub fn createWindow(desiredWidth: u32, desiredHeight: u32, name: [*:0]const u8, 
+    on_init_fn: Window.CallbackSignature, on_frame_fn: Window.CallbackSignature) !Window
+{
+    var window = Window{
+        .width = desiredWidth,
+        .height = desiredHeight,
+        .on_init_fn = on_init_fn,
+        .on_frame_fn = on_frame_fn
+    };
+
+    if (platform.IS_DESKTOP)
+    {
+        window.glfw_window = try glfw.Window.create(desiredWidth, desiredHeight, name, null, null, .{
+            .samples = 1,
+            .context_version_major = 3,
+            .context_version_minor = 3,
+            .opengl_forward_compat = true,
+            .opengl_profile = .opengl_core_profile
+        });
+    }
+    else if (platform.IS_WEB)
+    {
+        window.width = platform.web.webCanvasWidth();
+        window.height = platform.web.webCanvasHeight();
+    }
+
+    window.init();
+    on_init_fn();
+    return window;
+}
+
 pub const Window = struct {
     const CharacterPressCallbackSignature = fn (_: Window, _: u8) void;
     const CallbackSignature = fn() void;
@@ -51,6 +86,9 @@ pub const Window = struct {
     default_vertex_array_id: gl.Uint = 0,
     on_init_fn: CallbackSignature,
     on_frame_fn: CallbackSignature,
+    last_frame_time: f64 = 0.0,
+    frames_per_second_limit: f64 = 60.0,
+    delta_frame_time: f64 = 0.0,
 
     pub fn init(self: *Self) void
     {
@@ -110,19 +148,25 @@ pub const Window = struct {
     {
     }
 
-    pub fn startEventLoop(self: *const Self) void
+    pub fn startEventLoop(self: *Self) void
     {
         if (platform.IS_DESKTOP)
         {
             glfw.swapInterval(1) catch @panic("Failed to change GL swap interval.");
             while (!self.glfw_window.?.shouldClose())
             {
-                self.on_frame_fn();
-                self.glfw_window.?.swapBuffers() catch @panic("Failed to GL swap buffers.");
-                glfw.pollEvents() catch {
-                    @panic("Failed to poll events.");
-                };
-                std.time.sleep(10000);
+                const now_time: f64 = glfw.getTime();
+                const dt: f64 = now_time - self.last_frame_time;
+                if (dt >= (1.0/self.frames_per_second_limit))
+                {
+                    self.delta_frame_time = dt;
+                    self.on_frame_fn();
+                    self.glfw_window.?.swapBuffers() catch @panic("Failed to GL swap buffers.");
+                    glfw.pollEvents() catch {
+                        @panic("Failed to poll events.");
+                    };
+                    self.last_frame_time = now_time;
+                }
             }
         }
         else
@@ -148,16 +192,52 @@ pub const Window = struct {
         @panic("unsupported platform");
     }
 
-    pub fn isLeftMouseDown(self: Self) bool
+    pub fn isMouseDown(self: Self, mouse_button: MouseButton) bool
     {
         if (platform.IS_DESKTOP)
         {
-            const action = self.glfw_window.?.getMouseButton(.left);
+            const action = switch (mouse_button) {
+                .left => self.glfw_window.?.getMouseButton(.left),
+                .right => self.glfw_window.?.getMouseButton(.right),
+                .middle => self.glfw_window.?.getMouseButton(.middle)
+            };
             return (action == .press);
         }
         else if (platform.IS_WEB)
         {
-            return platform.web.webIsMouseLeftDown();
+            return switch (mouse_button) {
+                .left => platform.web.webIsMouseLeftDown(),
+                .right => platform.web.webIsMouseRightDown(),
+                .middle => platform.web.webIsMouseMiddleDown()
+            };
+        }
+        @panic("unsupported platform");
+    }
+
+    pub fn isKeyDown(self: Self, comptime key_name: []const u8) bool
+    {
+        if (platform.IS_DESKTOP)
+        {
+            const key = std.enums.nameCast(glfw.Key, key_name);
+            const action = self.glfw_window.?.getKey(key);
+            return (action == .press);
+        }
+        else if (platform.IS_WEB)
+        {
+            return platform.web.webIsKeyDown(key_name.ptr);
+        }
+        @panic("unsupported platform");
+    }
+
+    pub fn getDeltaTime(self: Self) f64
+    {
+        if (platform.IS_DESKTOP)
+        {
+            return self.delta_frame_time;
+        }
+        else if (platform.IS_WEB)
+        {
+            return 1.0 / 60.0;
         }
         @panic("unsupported platform");
     }
@@ -214,37 +294,6 @@ pub const Window = struct {
         return ortho_mtx;
     }
 };
-
-pub fn createWindow(desiredWidth: u32, desiredHeight: u32, name: [*:0]const u8, 
-    on_init_fn: Window.CallbackSignature, on_frame_fn: Window.CallbackSignature) !Window
-{
-    var window = Window{
-        .width = desiredWidth,
-        .height = desiredHeight,
-        .on_init_fn = on_init_fn,
-        .on_frame_fn = on_frame_fn
-    };
-
-    if (platform.IS_DESKTOP)
-    {
-        window.glfw_window = try glfw.Window.create(desiredWidth, desiredHeight, name, null, null, .{
-            .samples = 1,
-            .context_version_major = 3,
-            .context_version_minor = 3,
-            .opengl_forward_compat = true,
-            .opengl_profile = .opengl_core_profile
-        });
-    }
-    else if (platform.IS_WEB)
-    {
-        window.width = platform.web.webCanvasWidth();
-        window.height = platform.web.webCanvasHeight();
-    }
-
-    window.init();
-    on_init_fn();
-    return window;
-}
 
 const square_buffer_data = [_]f32 {
     -1.0, -1.0, 0.0,

@@ -4630,7 +4630,7 @@ CIMGUI_API void igLogText(CONST char *fmt, ...)
     char buffer[256];
     va_list args;
     va_start(args, fmt);
-    vsnprintf(buffer, 256, fmt, args);
+    ImFormatStringV(buffer, 256, fmt, args);
     va_end(args);
 
     ImGui::LogText("%s", buffer);
